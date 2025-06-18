@@ -180,13 +180,17 @@ def generate_lyrics(model, tokenizer, prompt="", max_length=200, temperature=1.0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     
+    # 确保提示不为空，如果为空，添加一个空格
+    if not prompt:
+        prompt = " "
+    
     # 对提示文本进行编码
-    encoded_prompt = tokenizer.encode(prompt, add_special_tokens=True, return_tensors="pt")
-    encoded_prompt = encoded_prompt.to(device)
+    inputs = tokenizer(prompt, return_tensors="pt", padding=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
     
     # 生成参数
     output_sequences = model.generate(
-        input_ids=encoded_prompt,
+        **inputs,
         max_length=max_length,
         temperature=temperature,
         top_k=top_k,
@@ -195,12 +199,14 @@ def generate_lyrics(model, tokenizer, prompt="", max_length=200, temperature=1.0
         do_sample=True,
         num_return_sequences=1,
         pad_token_id=tokenizer.pad_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        use_cache=True,
+        no_repeat_ngram_size=2,  # 避免重复的n-gram
     )
     
     # 解码生成的序列
     generated_text = tokenizer.decode(output_sequences[0], skip_special_tokens=True)
     return generated_text
-
 def format_lyrics(text, line_length=20):
     """格式化歌词，使其更易于阅读"""
     # 按标点符号分割
@@ -346,21 +352,51 @@ def create_ui(model, tokenizer):
     
     return app
 
+def load_trained_model(model_dir):
+    """加载已训练好的模型和分词器"""
+    logger.info(f"正在加载已训练好的模型: {model_dir}")
+
+    try:
+        # 检查是否有GPU
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        logger.info(f"使用设备: {device}")
+
+        # 加载模型和分词器
+        tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+        model = GPT2LMHeadModel.from_pretrained(model_dir)
+
+        # 确保pad_token设置正确
+        if not tokenizer.pad_token:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        # 将模型移至适当的设备
+        model.to(device)
+
+        logger.info("模型和分词器加载成功")
+        return model, tokenizer
+
+    except Exception as e:
+        logger.error(f"加载模型时出错: {str(e)}")
+        raise
+
 # 主函数：执行完整流程
 def main():
-    # 1. 处理CSV文件
-    logger.info("=== 步骤1: 处理CSV文件 ===")
-    lyrics_file = process_csv_lyrics(CSV_FILE, OUTPUT_DIR)
+    # # 1. 处理CSV文件
+    # logger.info("=== 步骤1: 处理CSV文件 ===")
+    # lyrics_file = process_csv_lyrics(CSV_FILE, OUTPUT_DIR)
     
-    # 2. 训练模型
-    logger.info("=== 步骤2: 训练模型 ===")
-    model, tokenizer = train_model(
-        data_path=lyrics_file,
-        output_dir=MODEL_DIR,
-        num_train_epochs=EPOCHS,
-        per_device_train_batch_size=BATCH_SIZE
-    )
+    # # 2. 训练模型
+    # logger.info("=== 步骤2: 训练模型 ===")
+    # model, tokenizer = train_model(
+    #     data_path=lyrics_file,
+    #     output_dir=MODEL_DIR,
+    #     num_train_epochs=EPOCHS,
+    #     per_device_train_batch_size=BATCH_SIZE
+    # )
     
+    # 加载已训练好的模型
+    logger.info("=== 加载已训练好的模型 ===")
+    model, tokenizer = load_trained_model(MODEL_DIR)
     # 3. 生成一些示例歌词
     logger.info("=== 步骤3: 生成示例歌词 ===")
     prompts = ["", "爱情", "思念", "夜晚", "雨"]

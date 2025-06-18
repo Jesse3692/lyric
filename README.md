@@ -13,3 +13,8 @@
 
 ```bash
 pip install -r requirements.txt
+```
+
+模型地址
+
+[Google Drive 模型地址](https://drive.google.com/file/d/1NtZoXFdZeNUSX8BGn7NK9gV7qOyERboz/view?usp=drive_link)

@@ -141,3 +141,4 @@ classes.svg
 .history/
 
 config.yaml
+trained_model/
